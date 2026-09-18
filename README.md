@@ -1,3 +1,2 @@
 # grse-ai-cost-estimator
-[module_3_vessel_cost_estimator_solution_approach.pptx](https://github.com/user-attachments/files/32372257/module_3_vessel_cost_estimator_solution_approach.pptx)
-
+<img width="2014" height="1139" alt="image" src="https://github.com/user-attachments/assets/63efbe77-0da4-4adf-9f89-1810e10707bc" />

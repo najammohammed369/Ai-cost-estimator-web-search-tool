@@ -13,14 +13,14 @@ from app.estimation.vessel_matcher import RankedComparable
 logger = structlog.get_logger(__name__)
 
 # Currency conversion to USD (approximate reference rates)
-EXCHANGE_RATES_TO_USD = {
-    "USD": 1.0,
-    "EUR": 1.10,
-    "GBP": 1.28,
-    "INR": 0.012,     # ~83 INR = 1 USD (1 Crore INR ~ $120,000 USD)
-    "SGD": 0.75,
-    "AUD": 0.67,
-    "CAD": 0.74,
+EXCHANGE_RATES_TO_INR = {
+    "USD": 0.010,
+    "EUR": 0.0091,
+    "GBP": 0.0078,
+    "INR": 1.0,     # ~83 INR = 1 USD (1 Crore INR ~ $120,000 USD)
+    "SGD": 0.013,
+    "AUD": 0.015,
+    "CAD": 0.015,
 }
 
 # Annual naval shipbuilding inflation rate assumption (~3.0% per annum)
@@ -56,27 +56,27 @@ def estimate_vessel_cost(
         # Fallback parametric estimate if no empirical cost data was found
         return _generate_parametric_fallback(profile, target_year, selected_comparables)
 
-    # 2. Normalize costs to target year USD unit cost
-    normalized_unit_costs_usd: list[float] = []
+    # 2. Normalize costs to target year INR unit cost
+    normalized_unit_costs_inr: list[float] = []
 
     for rc in valid_comparables:
         cand = rc.candidate
         raw_cost = cand.contract_value
-        curr = (cand.contract_currency or "USD").upper()
-        rate = EXCHANGE_RATES_TO_USD.get(curr, 1.0)
-        cost_usd = raw_cost * rate
+        curr = (cand.contract_currency or "INR").upper()
+        rate = EXCHANGE_RATES_TO_INR.get(curr, 1.0)
+        cost_inr = raw_cost * rate
 
         # Unit cost = Total Contract / Vessel Count
         vessel_count = max(1, cand.vessel_count_in_contract or 1)
-        unit_cost_usd = cost_usd / vessel_count
+        unit_cost_inr = cost_inr / vessel_count
 
         # Inflation adjustment to target_year
         contract_year = cand.contract_year or cand.delivery_year or 2020
         years_elapsed = max(0, target_year - contract_year)
         inflation_factor = math.pow(1 + ANNUAL_INFLATION_RATE, years_elapsed)
 
-        adjusted_unit_cost_usd = unit_cost_usd * inflation_factor
-        normalized_unit_costs_usd.append(adjusted_unit_cost_usd)
+        adjusted_unit_cost_inr = unit_cost_inr * inflation_factor
+        normalized_unit_costs_inr.append(adjusted_unit_cost_inr)
 
         logger.info(
             "normalized_comparable_cost",
@@ -85,37 +85,37 @@ def estimate_vessel_cost(
             currency=curr,
             vessel_count=vessel_count,
             contract_year=contract_year,
-            adjusted_unit_cost_usd=round(adjusted_unit_cost_usd, 2),
+            adjusted_unit_cost_inr=round(adjusted_unit_cost_inr, 2),
         )
 
     # 3. Calculate Low, Central (P50 / Median), and High Estimates
-    normalized_unit_costs_usd.sort()
-    count = len(normalized_unit_costs_usd)
+    normalized_unit_costs_inr.sort()
+    count = len(normalized_unit_costs_inr)
 
-    low_usd = normalized_unit_costs_usd[0]
-    high_usd = normalized_unit_costs_usd[-1]
+    low_inr = normalized_unit_costs_inr[0]
+    high_inr = normalized_unit_costs_inr[-1]
 
     # Central estimate = Median or weighted average by similarity score
     if count == 1:
-        central_usd = normalized_unit_costs_usd[0]
-        low_usd = central_usd * 0.85
-        high_usd = central_usd * 1.15
+        central_inr = normalized_unit_costs_inr[0]
+        low_inr = central_inr * 0.85
+        high_inr = central_inr * 1.15
         warnings.append("Estimate based on single comparable vessel; wider error margin applies (+/- 15%).")
     elif count % 2 == 1:
-        central_usd = normalized_unit_costs_usd[count // 2]
+        central_inr = normalized_unit_costs_inr[count // 2]
     else:
-        mid1 = normalized_unit_costs_usd[(count // 2) - 1]
-        mid2 = normalized_unit_costs_usd[count // 2]
-        central_usd = (mid1 + mid2) / 2.0
+        mid1 = normalized_unit_costs_inr[(count // 2) - 1]
+        mid2 = normalized_unit_costs_inr[count // 2]
+        central_inr = (mid1 + mid2) / 2.0
 
     # Ensure range bounds
-    if low_usd >= central_usd:
-        low_usd = central_usd * 0.90
-    if high_usd <= central_usd:
-        high_usd = central_usd * 1.10
+    if low_inr >= central_inr:
+        low_inr = central_inr * 0.90
+    if high_inr <= central_inr:
+        high_inr = central_inr * 1.10
 
     # Determine confidence level
-    confidence = "high" if count >= 3 and (high_usd - low_usd) / central_usd < 0.40 else "medium"
+    confidence = "high" if count >= 3 and (high_inr - low_inr) / central_inr < 0.40 else "medium"
     if count == 1:
         confidence = "low"
 
@@ -130,17 +130,17 @@ def estimate_vessel_cost(
     logger.info(
         "cost_estimation_complete",
         run_id=profile.run_id,
-        low_usd=round(low_usd, 2),
-        central_usd=round(central_usd, 2),
-        high_usd=round(high_usd, 2),
+        low_inr=round(low_inr, 2),
+        central_inr=round(central_inr, 2),
+        high_inr=round(high_inr, 2),
         confidence=confidence,
     )
 
     return CostEstimate(
-        low_usd=round(low_usd, 2),
-        central_usd=round(central_usd, 2),
-        high_usd=round(high_usd, 2),
-        currency="USD",
+        low_inr=round(low_inr, 2),
+        central_inr=round(central_inr, 2),
+        high_inr=round(high_inr, 2),
+        currency="INR",
         estimate_year=target_year,
         confidence=confidence,
         comparable_count=count,

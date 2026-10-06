@@ -85,11 +85,26 @@ def run_pipeline(file_path: str, phase: int = 3) -> None:
         print("VESSEL COST ESTIMATE (TARGET YEAR 2026)")
         print("=" * 60)
         est = state.estimate
-        print(f"  Low Estimate:     ${est.low_usd:,.2f} USD")
-        print(f"  Central Estimate: ${est.central_usd:,.2f} USD")
-        print(f"  High Estimate:    ${est.high_usd:,.2f} USD")
+        print(f"  Low Estimate:     ${est.low_usd_derived:>14,.0f} USD   \u20b9{est.low_inr_derived:>18,.0f} INR")
+        print(f"  Central Estimate: ${est.central_usd_derived:>14,.0f} USD   \u20b9{est.central_inr_derived:>18,.0f} INR")
+        print(f"  High Estimate:    ${est.high_usd_derived:>14,.0f} USD   \u20b9{est.high_inr_derived:>18,.0f} INR")
         print(f"  Confidence:       {est.confidence.upper()}")
-        print(f"  Methodology:      {est.methodology}")
+        print(f"  Comparables used: {est.comparable_count}")
+        print(f"  Methodology:      {est.methodology[:120]}..." if len(est.methodology) > 120 else f"  Methodology:      {est.methodology}")
+
+    if state.candidate_vessels:
+        print("\n" + "=" * 60)
+        print(f"CANDIDATE VESSELS DISCOVERED ({len(state.candidate_vessels)})")
+        print("=" * 60)
+        for c in state.candidate_vessels[:10]:
+            cost = f" | {c.contract_currency or ''}{c.contract_value:,.0f}" if c.contract_value else ""
+            print(f"  [{c.data_category}] {c.vessel_name} ({c.vessel_type or '?'}) {c.country or ''}{cost}")
+
+    report_path = getattr(state, "_report_path", None)
+    if report_path:
+        print("\n" + "=" * 60)
+        print(f"EXCEL REPORT: {report_path}")
+        print("=" * 60)
 
     if state.warnings:
         print("\nWARNINGS:")
@@ -115,8 +130,8 @@ Examples:
         help="Path to vessel specification document (PDF, DOCX, or TXT)",
     )
     parser.add_argument(
-        "--phase", type=int, default=6,
-        help="Run through this phase (1=spec, 2=queries, 3=search, 6=full cost estimation). Default: 6",
+        "--phase", type=int, default=8,
+        help="Run through this phase (1=spec, 2=queries, 3=search, 4=candidates, 5=costs, 6=estimate, 7=report). Default: 8 (full run)",
     )
 
     args = parser.parse_args()

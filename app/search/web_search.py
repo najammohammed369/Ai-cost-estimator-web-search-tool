@@ -141,7 +141,21 @@ class SerpAPIProvider(SearchProvider):
 
     def search(self, query: str, num_results: int = 10) -> list[SearchResult]:
         """Execute a Google search via SerpAPI."""
-        from serpapi import GoogleSearch
+        try:
+            # Attempt to import the appropriate SerpAPI client.
+            from serpapi import GoogleSearch  # older version
+            SearchClient = GoogleSearch
+        except ImportError:
+            try:
+                from serpapi import GoogleSearchResults  # newer google-search-results package
+                SearchClient = GoogleSearchResults
+            except ImportError as e:
+                raise ImportError(
+                    "SerpAPI client not found. Install 'google-search-results' package."
+                ) from e
+        except ImportError:
+            # Fallback for newer serpapi layout
+            from serpapi.google_search import GoogleSearch
 
         logger.info("serpapi_search", query=query[:80], num_results=num_results)
 
@@ -155,7 +169,7 @@ class SerpAPIProvider(SearchProvider):
                 "hl": "en",   # Language
             }
 
-            search = GoogleSearch(params)
+            search = SearchClient(params)
             raw = search.get_dict()
 
             results: list[SearchResult] = []

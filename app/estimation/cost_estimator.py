@@ -124,8 +124,14 @@ def estimate_vessel_cost(
         f"Vessel-level cost estimate for target '{vessel_type_str}' derived from {count} "
         f"comparable vessel contracts delivered/built in recent years. Costs were normalized for "
         f"batch count, currency exchange rates, and a {ANNUAL_INFLATION_RATE*100:.1f}% annual "
-        f"naval shipbuilding inflation index to {target_year} USD."
+        f"naval shipbuilding inflation index to {target_year} INR."
     )
+
+    # Convert INR to USD for reporting (1 USD ~ 83 INR)
+    INR_TO_USD = 1 / 83.0
+    low_usd = round(low_inr * INR_TO_USD, 2)
+    central_usd = round(central_inr * INR_TO_USD, 2)
+    high_usd = round(high_inr * INR_TO_USD, 2)
 
     logger.info(
         "cost_estimation_complete",
@@ -133,6 +139,9 @@ def estimate_vessel_cost(
         low_inr=round(low_inr, 2),
         central_inr=round(central_inr, 2),
         high_inr=round(high_inr, 2),
+        low_usd=low_usd,
+        central_usd=central_usd,
+        high_usd=high_usd,
         confidence=confidence,
     )
 
@@ -140,6 +149,9 @@ def estimate_vessel_cost(
         low_inr=round(low_inr, 2),
         central_inr=round(central_inr, 2),
         high_inr=round(high_inr, 2),
+        low_usd=low_usd,
+        central_usd=central_usd,
+        high_usd=high_usd,
         currency="INR",
         estimate_year=target_year,
         confidence=confidence,
@@ -195,15 +207,34 @@ def _generate_parametric_fallback(
     central_usd = disp * cost_per_tonne_central
     high_usd = disp * cost_per_tonne_high
 
+    # Also express in INR (~83 INR per USD)
+    USD_TO_INR = 83.0
+    low_inr = low_usd * USD_TO_INR
+    central_inr = central_usd * USD_TO_INR
+    high_inr = high_usd * USD_TO_INR
+
     methodology = (
         f"Parametric vessel-level estimate derived using naval cost-per-tonne density factors "
-        f"(${cost_per_tonne_central:,.0f}/tonne) applied to estimated displacement of {disp:,.0f} tonnes."
+        f"(${cost_per_tonne_central:,.0f}/tonne) applied to estimated displacement of {disp:,.0f} tonnes. "
+        f"No comparable vessel contracts with verified prices were found in search results."
+    )
+
+    logger.info(
+        "parametric_fallback_estimate",
+        displacement_t=disp,
+        low_usd=round(low_usd, 2),
+        central_usd=round(central_usd, 2),
+        high_usd=round(high_usd, 2),
+        comparable_count=len(selected_comparables),
     )
 
     return CostEstimate(
         low_usd=round(low_usd, 2),
         central_usd=round(central_usd, 2),
         high_usd=round(high_usd, 2),
+        low_inr=round(low_inr, 2),
+        central_inr=round(central_inr, 2),
+        high_inr=round(high_inr, 2),
         currency="USD",
         estimate_year=target_year,
         confidence="insufficient",

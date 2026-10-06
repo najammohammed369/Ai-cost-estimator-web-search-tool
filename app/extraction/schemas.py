@@ -6,7 +6,7 @@ so the final estimate is fully auditable.
 """
 
 from __future__ import annotations
-from typing import Any, Optional
+from typing import Any, ClassVar, Optional
 from pydantic import BaseModel, Field
 
 
@@ -284,13 +284,68 @@ class CandidateVessel(BaseModel):
 # =============================================================================
 
 class CostEstimate(BaseModel):
-    """Final vessel cost estimate with range."""
-    low_usd: float
-    central_usd: float
-    high_usd: float
-    currency: str = "USD"
-    estimate_year: int
-    confidence: str  # "high", "medium", "low", "insufficient"
-    comparable_count: int
-    methodology: str
+    """Final vessel cost estimate with range (stored in USD; INR helpers derived at ~83 USD/INR)."""
+
+    # Primary values in USD
+    low_usd: float = 0.0
+    central_usd: float = 0.0
+    high_usd: float = 0.0
+
+    # Optional INR primary values (set when source currency is INR)
+    low_inr: Optional[float] = None
+    central_inr: Optional[float] = None
+    high_inr: Optional[float] = None
+
+    currency: str = "USD"          # "USD" or "INR" (primary reporting currency)
+    estimate_year: int = 2026
+    confidence: str = "low"        # "high", "medium", "low", "insufficient"
+    comparable_count: int = 0
+    methodology: str = ""
     warnings: list[str] = Field(default_factory=list)
+
+    # ------------------------------------------------------------------
+    # Convenience properties — always usable regardless of source currency
+    # ------------------------------------------------------------------
+    USD_PER_INR: ClassVar[float] = 1 / 83.0  # approximate exchange rate
+
+    @property
+    def low_inr_derived(self) -> float:
+        if self.low_inr is not None:
+            return self.low_inr
+        return self.low_usd / self.USD_PER_INR
+
+    @property
+    def central_inr_derived(self) -> float:
+        if self.central_inr is not None:
+            return self.central_inr
+        return self.central_usd / self.USD_PER_INR
+
+    @property
+    def high_inr_derived(self) -> float:
+        if self.high_inr is not None:
+            return self.high_inr
+        return self.high_usd / self.USD_PER_INR
+
+    @property
+    def low_usd_derived(self) -> float:
+        if self.low_usd:
+            return self.low_usd
+        if self.low_inr is not None:
+            return self.low_inr * self.USD_PER_INR
+        return 0.0
+
+    @property
+    def central_usd_derived(self) -> float:
+        if self.central_usd:
+            return self.central_usd
+        if self.central_inr is not None:
+            return self.central_inr * self.USD_PER_INR
+        return 0.0
+
+    @property
+    def high_usd_derived(self) -> float:
+        if self.high_usd:
+            return self.high_usd
+        if self.high_inr is not None:
+            return self.high_inr * self.USD_PER_INR
+        return 0.0
